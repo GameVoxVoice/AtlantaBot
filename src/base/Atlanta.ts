@@ -45,7 +45,14 @@ export default class Atlanta extends Client {
 	giveawaysManager: GiveawaysManager;
 
 	constructor() {
-		super({
+		// GameVox compat: when these env vars are set, point discord.js at
+		// the GameVox bot-api host instead of discord.com. Leave them unset
+		// and the bot connects to real Discord normally. discord.js types
+		// the rest/ws nested options narrowly; we cast since we're only
+		// supplying the two fields that exist.
+		const apiBase = process.env.GAMEVOX_API; // e.g. https://bot.gamevox.com
+		const gatewayURL = process.env.GAMEVOX_GATEWAY; // e.g. wss://bot.gamevox.com
+		const opts: any = {
 			intents: [
 				GatewayIntentBits.Guilds,
 				GatewayIntentBits.GuildMembers,
@@ -55,7 +62,10 @@ export default class Atlanta extends Client {
 				GatewayIntentBits.DirectMessages,
 			],
 			allowedMentions: { parse: ["users"] },
-		});
+		};
+		if (apiBase) opts.rest = { api: apiBase + "/api" };
+		if (gatewayURL) opts.ws = { gatewayURL };
+		super(opts);
 
 		this.config = config;
 		this.customEmojis = customEmojis as CustomEmojis;
