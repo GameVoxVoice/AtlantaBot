@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+#
+# Stop a credential before it leaves this machine.
+#
+# CI runs the same check, but CI runs AFTER the push -- by which point the
+# secret is already on GitHub and has to be rotated, not just amended away.
+# This hook is the one that actually prevents disclosure; the workflow is the
+# net for anyone who has not enabled it.
+#
+# Enable with:  git config core.hooksPath .githooks
+#
+# Bypass, if you are certain:  git commit --no-verify
+
+exec sh "$(git rev-parse --show-toplevel)/scripts/secret-guard.sh" --staged

@@ -29,6 +29,7 @@ Per GPL-3.0 section 5(a), the modified files and what changed:
 | `docker-compose.yml` | New. Mongo plus the bot, for local runs. |
 | `.env.local.example` | New. Template for the environment above. |
 | `.gitignore` | Added `.env.local`, since upstream's list predates it and `.env` itself is tracked and cannot be ignored. |
+| `scripts/secret-guard.sh`, `.githooks/pre-commit`, `.github/workflows/secret-guard.yml` | New. Blocks plaintext credentials at commit time and in CI. |
 
 ## Running it
 
@@ -58,6 +59,37 @@ is ignored, and `--env-file` points Compose at it.
 
 To run against real Discord instead, unset `GAMEVOX_API` and
 `GAMEVOX_GATEWAY`; discord.js falls back to its built-in endpoints.
+
+## Keeping credentials out
+
+`scripts/secret-guard.sh` refuses to let a plaintext credential into the repo.
+It runs two ways:
+
+```
+git config core.hooksPath .githooks     # once per clone
+```
+
+The pre-commit hook is the one that matters, because it runs before anything
+leaves your machine. The `secret-guard` workflow runs the same script on every
+push as a net for anyone who has not enabled the hook — but by the time CI
+fails, the secret is already on GitHub and needs rotating, not amending.
+
+What it checks:
+
+1. **Every value in `.env` is dotenvx-encrypted.** This is an allowlist, not a
+   hunt for things that look secret, so a pasted credential fails whatever
+   shape it has. `.env` gets this treatment because it is tracked and Compose
+   reads it automatically, which makes it the obvious wrong place for a token.
+2. **No `.env.local`, `.env.*.local` or `.env.keys` is tracked.**
+3. **Nothing credential-shaped anywhere else** — private key blocks, AWS keys,
+   GitHub tokens, Discord-style bot tokens. Deliberately narrow, since a guard
+   that cries wolf gets switched off. A deliberate sample can opt out with a
+   `secret-guard:allow` comment on the line.
+
+Failures report the file, the line and the variable name, never the value: a
+guard that echoes a secret into a public build log has moved the problem
+rather than solved it. If the scan itself cannot run, it fails the build
+instead of reporting a pass it did not verify.
 
 ## In-app settings
 
