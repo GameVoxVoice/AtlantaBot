@@ -1,0 +1,92 @@
+# Local Docker Compose stack for running AtlantaBot against GameVox.
+#
+# Two services: a mongo instance for the bot's persistence, and the bot
+# itself. The bot makes only OUTBOUND connections (to bot-api.gamevox.com
+# for REST and gateway.gamevox.com for the websocket),
+# so no inbound ports are required for it to function — we only publish
+# the mongo port to a non-standard host port so you can inspect it from
+# the host without colliding with any other local mongo.
+#
+# Non-standard ports:
+#   27117 (host) → 27017 (mongo container)    # inspect from host
+#   28080 (host) → 8080  (bot dashboard)      # only used if DASHBOARD_ENABLED=true
+#
+# Start with:
+#   docker compose up -d --build
+# Logs:
+#   docker compose logs -f bot
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27117:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      # Bot identity — token comes from developers.gamevox.com.
+      DISCORD_TOKEN: "${DISCORD_TOKEN}"
+      OWNER_ID: "${OWNER_ID:-}"
+      OWNER_NAME: "${OWNER_NAME:-tester}"
+
+      # Point discord.js at GameVox instead of Discord. Patch lives in
+      # src/base/Atlanta.ts — when these are set, the Client wires up
+      # rest.api + ws.gatewayURL to the values below.
+      #
+      # REST and the gateway are DIFFERENT hostnames. They are one service
+      # behind the ALB, but it host-routes: bot-api.* serves the REST API and
+      # gateway.* serves the WSS upgrade, so the Host header decides which you
+      # get. Deriving one from the other by swapping the scheme does not work.
+      # There is no single "bot.gamevox.com" — that name has never existed in
+      # DNS, which is what made this fail with ENOTFOUND.
+      #
+      # GAMEVOX_API is the ORIGIN only; Atlanta.ts appends "/api" itself.
+      GAMEVOX_API: "${GAMEVOX_API:-https://bot-api.gamevox.com}"
+      GAMEVOX_GATEWAY: "${GAMEVOX_GATEWAY:-wss://gateway.gamevox.com}"
+
+      # Mongo on the docker network (compose DNS gives us 'mongo').
+      MONGODB_URI: "mongodb://mongo:27017/AtlantaBot"
+
+      # Disable dashboard + votes for the test bot (one less thing to wire).
+      DASHBOARD_ENABLED: "false"
+      DASHBOARD_SECRET: ""
+      DASHBOARD_BASE_URL: ""
+      DASHBOARD_LOGS_CHANNEL: ""
+      DASHBOARD_PORT: "8080"
+      DASHBOARD_SESSION_PASSWORD: "unused"
+      DASHBOARD_FAILURE_URL: ""
+
+      # Support server / logs — empty is fine, just suppresses warnings.
+      SUPPORT_SERVER_ID: ""
+      SUPPORT_LOGS_CHANNEL: ""
+
+      # Sentry / Top.gg etc. — left empty so the bot starts cleanly.
+      SENTRY_DSN: ""
+      API_DBL: ""
+      VOTES_PORT: "5000"
+      VOTES_PASSWORD: ""
+      VOTES_CHANNEL: ""
+
+      EMBED_COLOR: "#ff7a00"
+      EMBED_FOOTER: "GameVox compat test"
+      GITHUB_URL: "https://github.com/Androz2091/AtlantaBot"
+      DONATE_URL: "https://patreon.com/Androz2091"
+    ports:
+      - "28080:8080"
+
+volumes:
+  mongo-data:
