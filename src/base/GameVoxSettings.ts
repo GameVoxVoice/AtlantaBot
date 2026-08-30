@@ -430,49 +430,66 @@ async function applySettings(client: Atlanta, guildID: string, raw: unknown): Pr
 	const plugins = data.plugins as IGuildPlugins;
 	const guild = client.guilds.cache.get(guildID);
 
-	// One fetch, so a channel created since the last gateway event still
-	// resolves. A failure here is not fatal: the cache is then the whole
-	// answer, and an unresolvable id is skipped either way.
-	if (guild) {
-		await guild.channels.fetch().catch(() => undefined);
+	// Refuse rather than write. Without the guild there is nothing to resolve
+	// ids against, so every channel and group would fail its lookup and the
+	// save would quietly clear the lot -- reported to the operator as a
+	// success with a few values "skipped". A settings panel that wipes a
+	// configuration because the bot happened to be mid-reconnect is a worse
+	// outcome than one that says try again.
+	if (!guild) {
+		throw new Error(`guild ${guildID} is not in cache; refusing to save`);
 	}
 
+	// Refresh both caches: an operator who has just created a channel or a
+	// group and gone straight to this panel would otherwise have their pick
+	// rejected as unresolvable. Failure is not fatal -- the existing cache is
+	// then the whole answer, and see keepOnSkip below for what happens to an
+	// id we cannot place.
+	await Promise.all([
+		guild.channels.fetch().catch(() => undefined),
+		guild.roles.fetch().catch(() => undefined),
+	]);
+
 	let skipped = 0;
-	const channelID = (v: unknown, kinds: string[] | null): string | null => {
+
+	// An id we cannot resolve keeps whatever is already stored; it does NOT
+	// clear the field. The two cases are distinguishable and must not be
+	// conflated: clearing a setting sends null, which returns before any
+	// lookup happens, while an id that fails to resolve means our view of the
+	// server is stale or the channel is gone. Treating the second as "the
+	// operator wants this empty" loses configuration nobody asked to lose.
+	const channelID = (v: unknown, kinds: string[] | null, current: string | null): string | null => {
 		const id = asSnowflake(v);
 		if (id === null) return null;
-		const ch = guild?.channels.cache.get(id);
+		const ch = guild.channels.cache.get(id);
 		if (!ch) {
 			skipped++;
-			return null;
+			return current;
 		}
 		// GuildChannel kinds are numeric on the wire; category is 4, and the
 		// rest are things a message can go in.
-		if (kinds && kinds.includes("header") && ch.type !== 4) {
+		const wantsCategory = kinds !== null && kinds.includes("header");
+		if (wantsCategory !== (ch.type === 4)) {
 			skipped++;
-			return null;
-		}
-		if (kinds && !kinds.includes("header") && ch.type === 4) {
-			skipped++;
-			return null;
+			return current;
 		}
 		return id;
 	};
-	const channelIDs = (v: unknown): string[] => {
-		if (!Array.isArray(v)) return [];
+	const channelIDs = (v: unknown, current: string[]): string[] => {
+		if (!Array.isArray(v)) return current;
 		const out: string[] = [];
 		for (const entry of v.slice(0, MAX_SELECTED)) {
-			const id = channelID(entry, POSTABLE);
+			const id = channelID(entry, POSTABLE, null);
 			if (id && !out.includes(id)) out.push(id);
 		}
 		return out;
 	};
-	const roleID = (v: unknown): string | null => {
+	const roleID = (v: unknown, current: string | null): string | null => {
 		const id = asSnowflake(v);
 		if (id === null) return null;
-		if (!guild?.roles.cache.get(id)) {
+		if (!guild.roles.cache.get(id)) {
 			skipped++;
-			return null;
+			return current;
 		}
 		return id;
 	};
@@ -488,7 +505,7 @@ async function applySettings(client: Atlanta, guildID: string, raw: unknown): Pr
 	}
 	if (has("autoDeleteModCommands")) data.autoDeleteModCommands = values.autoDeleteModCommands === true;
 	if (has("ignoredChannels")) {
-		data.ignoredChannels = channelIDs(values.ignoredChannels);
+		data.ignoredChannels = channelIDs(values.ignoredChannels, asStringArray(data.ignoredChannels));
 		data.markModified("ignoredChannels");
 	}
 
@@ -496,22 +513,27 @@ async function applySettings(client: Atlanta, guildID: string, raw: unknown): Pr
 	applyGreeting(plugins.goodbye, "goodbye", values, has, channelID);
 
 	if (has("autorole.enabled")) plugins.autorole.enabled = values["autorole.enabled"] === true;
-	if (has("autorole.role")) plugins.autorole.role = roleID(values["autorole.role"]);
+	if (has("autorole.role")) plugins.autorole.role = roleID(values["autorole.role"], plugins.autorole.role ?? null);
 
 	if (has("automod.enabled")) plugins.automod.enabled = values["automod.enabled"] === true;
-	if (has("automod.ignored")) plugins.automod.ignored = channelIDs(values["automod.ignored"]);
+	if (has("automod.ignored")) plugins.automod.ignored = channelIDs(values["automod.ignored"], asStringArray(plugins.automod.ignored));
 
 	for (const key of ["modlogs", "logs", "reports", "suggestions"] as const) {
 		if (!has(key)) continue;
 		// This schema stores "off" as false, not null.
-		plugins[key] = channelID(values[key], POSTABLE) ?? false;
+		// This schema stores "off" as false, not null, so the current value has
+		// to be normalised before it can be handed back as the keep-on-skip.
+		const stored = typeof plugins[key] === "string" ? (plugins[key] as string) : null;
+		plugins[key] = channelID(values[key], POSTABLE, stored) ?? false;
 	}
 
 	if (has("warns.kick")) plugins.warnsSanctions.kick = warnCount(values["warns.kick"]);
 	if (has("warns.ban")) plugins.warnsSanctions.ban = warnCount(values["warns.ban"]);
 
 	if (has("tickets.enabled")) plugins.tickets.enabled = values["tickets.enabled"] === true;
-	if (has("tickets.category")) plugins.tickets.category = channelID(values["tickets.category"], ["header"]);
+	if (has("tickets.category")) {
+		plugins.tickets.category = channelID(values["tickets.category"], ["header"], plugins.tickets.category ?? null);
+	}
 
 	// plugins is a Mixed path, so mongoose cannot see a nested mutation on its
 	// own. Without this the save is a no-op and the panel reports success on a
@@ -530,10 +552,12 @@ function applyGreeting(
 	prefix: "welcome" | "goodbye",
 	values: Record<string, unknown>,
 	has: (key: string) => boolean,
-	channelID: (v: unknown, kinds: string[] | null) => string | null
+	channelID: (v: unknown, kinds: string[] | null, current: string | null) => string | null
 ): void {
 	if (has(`${prefix}.enabled`)) plugin.enabled = values[`${prefix}.enabled`] === true;
-	if (has(`${prefix}.channel`)) plugin.channel = channelID(values[`${prefix}.channel`], POSTABLE);
+	if (has(`${prefix}.channel`)) {
+		plugin.channel = channelID(values[`${prefix}.channel`], POSTABLE, plugin.channel ?? null);
+	}
 	if (has(`${prefix}.message`)) {
 		const msg = typeof values[`${prefix}.message`] === "string" ? (values[`${prefix}.message`] as string).slice(0, 1800) : "";
 		plugin.message = msg.trim() === "" ? null : msg;
