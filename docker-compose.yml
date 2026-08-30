@@ -12,7 +12,11 @@
 #   28080 (host) → 8080  (bot dashboard)      # only used if DASHBOARD_ENABLED=true
 #
 # Start with:
-#   docker compose up -d --build
+#   docker compose --env-file .env.local up -d --build
+#
+# The --env-file is not optional. Compose would read .env by default, but .env
+# is tracked in this repo, so putting a token there risks committing it. Keep
+# secrets in .env.local, which is ignored.
 # Logs:
 #   docker compose logs -f bot
 

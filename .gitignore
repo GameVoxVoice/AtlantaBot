@@ -26,3 +26,12 @@ report*.json
 # IDE
 .vscode
 .idea
+
+# GameVox fork: local secrets
+#
+# NOTE: .env is TRACKED by upstream (it holds their dotenvx-encrypted values),
+# so it can never be protected by an ignore rule -- ignore rules do not apply
+# to files already in the index. Put your bot token in .env.local and pass it
+# with `docker compose --env-file .env.local`. Never write it into .env.
+.env.local
+.env.*.local

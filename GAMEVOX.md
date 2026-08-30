@@ -28,6 +28,7 @@ Per GPL-3.0 section 5(a), the modified files and what changed:
 | `.dockerignore` | Stopped excluding `src/`, which the single-stage build compiles in the image. |
 | `docker-compose.yml` | New. Mongo plus the bot, for local runs. |
 | `.env.local.example` | New. Template for the environment above. |
+| `.gitignore` | Added `.env.local`, since upstream's list predates it and `.env` itself is tracked and cannot be ignored. |
 
 ## Running it
 
@@ -40,13 +41,20 @@ there is no single `bot.gamevox.com` — that name has never existed in DNS.
 `GAMEVOX_API` is the origin only; `Atlanta.ts` appends `/api` itself.
 
 ```
-cp .env.local.example .env
+cp .env.local.example .env.local
 # fill in DISCORD_TOKEN from developers.gamevox.com
-docker compose up -d --build
+docker compose --env-file .env.local up -d --build
 docker compose logs -f bot
 ```
 
 Then OAuth-install the bot to a test server from the developer portal.
+
+**Keep your token in `.env.local`, not `.env`.** Compose reads `.env`
+automatically, which makes it the obvious place to put one, but `.env` is
+tracked in this repo — it carries upstream's dotenvx-encrypted values.
+`.gitignore` cannot protect a file that is already in the index, so a token
+written to `.env` is one `git commit -a` away from being public. `.env.local`
+is ignored, and `--env-file` points Compose at it.
 
 To run against real Discord instead, unset `GAMEVOX_API` and
 `GAMEVOX_GATEWAY`; discord.js falls back to its built-in endpoints.
