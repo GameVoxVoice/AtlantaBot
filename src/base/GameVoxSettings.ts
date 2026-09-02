@@ -210,71 +210,6 @@ async function describeSettings(client: Atlanta, guildID: string): Promise<Setti
 			],
 		},
 		{
-			key: "welcome",
-			label: "Welcome messages",
-			description: "Posted when someone joins.",
-			fields: [
-				{ key: "welcome.enabled", label: "Send a welcome message", type: "boolean", value: plugins.welcome.enabled === true },
-				{
-					key: "welcome.channel",
-					label: "Channel",
-					type: "channel",
-					value: chan(plugins.welcome.channel),
-					channel_kinds: POSTABLE,
-					show_if: { key: "welcome.enabled", equals: true },
-				},
-				{
-					key: "welcome.message",
-					label: "Message",
-					type: "text",
-					value: plugins.welcome.message ?? "",
-					max_length: 1800,
-					placeholder: "Welcome {user} to {server}!",
-					help: "{user}, {server} and {membercount} are replaced when the message is sent.",
-					show_if: { key: "welcome.enabled", equals: true },
-				},
-				{
-					key: "welcome.withImage",
-					label: "Include a generated welcome card",
-					type: "boolean",
-					value: plugins.welcome.withImage === true,
-					show_if: { key: "welcome.enabled", equals: true },
-				},
-			],
-		},
-		{
-			key: "goodbye",
-			label: "Goodbye messages",
-			description: "Posted when someone leaves.",
-			fields: [
-				{ key: "goodbye.enabled", label: "Send a goodbye message", type: "boolean", value: plugins.goodbye.enabled === true },
-				{
-					key: "goodbye.channel",
-					label: "Channel",
-					type: "channel",
-					value: chan(plugins.goodbye.channel),
-					channel_kinds: POSTABLE,
-					show_if: { key: "goodbye.enabled", equals: true },
-				},
-				{
-					key: "goodbye.message",
-					label: "Message",
-					type: "text",
-					value: plugins.goodbye.message ?? "",
-					max_length: 1800,
-					placeholder: "{user} just left {server}.",
-					show_if: { key: "goodbye.enabled", equals: true },
-				},
-				{
-					key: "goodbye.withImage",
-					label: "Include a generated goodbye card",
-					type: "boolean",
-					value: plugins.goodbye.withImage === true,
-					show_if: { key: "goodbye.enabled", equals: true },
-				},
-			],
-		},
-		{
 			key: "autorole",
 			label: "Auto-role",
 			description: "Given to every member on join.",
@@ -314,26 +249,6 @@ async function describeSettings(client: Atlanta, guildID: string): Promise<Setti
 				{ key: "logs", label: "Server log channel", type: "channel", value: chan(plugins.logs), channel_kinds: POSTABLE },
 				{ key: "reports", label: "Reports channel", type: "channel", value: chan(plugins.reports), channel_kinds: POSTABLE },
 				{ key: "suggestions", label: "Suggestions channel", type: "channel", value: chan(plugins.suggestions), channel_kinds: POSTABLE },
-				{
-					key: "warns.kick",
-					label: "Kick after this many warnings",
-					type: "number",
-					value: typeof plugins.warnsSanctions.kick === "number" ? plugins.warnsSanctions.kick : 0,
-					min: 0,
-					max: 20,
-					step: 1,
-					help: "0 turns the automatic kick off.",
-				},
-				{
-					key: "warns.ban",
-					label: "Ban after this many warnings",
-					type: "number",
-					value: typeof plugins.warnsSanctions.ban === "number" ? plugins.warnsSanctions.ban : 0,
-					min: 0,
-					max: 20,
-					step: 1,
-					help: "0 turns the automatic ban off.",
-				},
 			],
 		},
 		{
@@ -387,23 +302,8 @@ async function describeLegacy(client: Atlanta, guildID: string): Promise<Setting
 			required: true,
 		},
 		{ key: "autoDeleteModCommands", label: "Delete moderation commands after running them", type: "boolean", value: data.autoDeleteModCommands === true },
-		{ key: "welcome.enabled", label: "Send a welcome message", type: "boolean", value: plugins.welcome.enabled === true },
-		{ key: "goodbye.enabled", label: "Send a goodbye message", type: "boolean", value: plugins.goodbye.enabled === true },
 		{ key: "automod.enabled", label: "Enable auto-moderation", type: "boolean", value: plugins.automod.enabled === true },
 		{ key: "tickets.enabled", label: "Enable tickets", type: "boolean", value: plugins.tickets.enabled === true },
-		{
-			key: "warns.kick",
-			label: "Kick after this many warnings",
-			type: "number",
-			value: typeof plugins.warnsSanctions.kick === "number" ? plugins.warnsSanctions.kick : 0,
-			help: "0 turns the automatic kick off. Channel and group settings need a newer GameVox server.",
-		},
-		{
-			key: "warns.ban",
-			label: "Ban after this many warnings",
-			type: "number",
-			value: typeof plugins.warnsSanctions.ban === "number" ? plugins.warnsSanctions.ban : 0,
-		},
 	];
 }
 
@@ -509,8 +409,6 @@ async function applySettings(client: Atlanta, guildID: string, raw: unknown): Pr
 		data.markModified("ignoredChannels");
 	}
 
-	applyGreeting(plugins.welcome, "welcome", values, has, channelID);
-	applyGreeting(plugins.goodbye, "goodbye", values, has, channelID);
 
 	if (has("autorole.enabled")) plugins.autorole.enabled = values["autorole.enabled"] === true;
 	if (has("autorole.role")) plugins.autorole.role = roleID(values["autorole.role"], plugins.autorole.role ?? null);
@@ -527,8 +425,6 @@ async function applySettings(client: Atlanta, guildID: string, raw: unknown): Pr
 		plugins[key] = channelID(values[key], POSTABLE, stored) ?? false;
 	}
 
-	if (has("warns.kick")) plugins.warnsSanctions.kick = warnCount(values["warns.kick"]);
-	if (has("warns.ban")) plugins.warnsSanctions.ban = warnCount(values["warns.ban"]);
 
 	if (has("tickets.enabled")) plugins.tickets.enabled = values["tickets.enabled"] === true;
 	if (has("tickets.category")) {
@@ -547,24 +443,6 @@ async function applySettings(client: Atlanta, guildID: string, raw: unknown): Pr
 	return "Settings saved.";
 }
 
-function applyGreeting(
-	plugin: IGuildPlugins["welcome"],
-	prefix: "welcome" | "goodbye",
-	values: Record<string, unknown>,
-	has: (key: string) => boolean,
-	channelID: (v: unknown, kinds: string[] | null, current: string | null) => string | null
-): void {
-	if (has(`${prefix}.enabled`)) plugin.enabled = values[`${prefix}.enabled`] === true;
-	if (has(`${prefix}.channel`)) {
-		plugin.channel = channelID(values[`${prefix}.channel`], POSTABLE, plugin.channel ?? null);
-	}
-	if (has(`${prefix}.message`)) {
-		const msg = typeof values[`${prefix}.message`] === "string" ? (values[`${prefix}.message`] as string).slice(0, 1800) : "";
-		plugin.message = msg.trim() === "" ? null : msg;
-	}
-	if (has(`${prefix}.withImage`)) plugin.withImage = values[`${prefix}.withImage`] === true;
-}
-
 // ---------------------------------------------------------------------------
 // Coercion helpers
 // ---------------------------------------------------------------------------
@@ -577,11 +455,4 @@ function asSnowflake(v: unknown): string | null {
 
 function asStringArray(v: unknown): string[] {
 	return Array.isArray(v) ? v.filter((e): e is string => typeof e === "string").slice(0, MAX_SELECTED) : [];
-}
-
-/** 0 means "off", which this schema spells as false. */
-function warnCount(v: unknown): number | false {
-	const n = Number(v);
-	if (!Number.isFinite(n) || n <= 0) return false;
-	return Math.min(20, Math.round(n));
 }
