@@ -30,22 +30,29 @@ Atlanta v5 is a **ground-up rewrite** of the original JavaScript codebase (which
 Atlanta offers (non-exhaustive list):
 *   ⚡ All commands are Discord **slash commands** -- no prefix needed
 *   🇫🇷 Support for translations (9 languages out of the box)
-*   ⚙️ Guild configuration (language, welcome/goodbye, autorole, automod, etc...)
+*   ⚙️ Guild configuration (language, autorole, automod, tickets, etc...)
 *   😀 Commands made pleasant thanks to the many emojis
 *   🗳️ Support for top.gg votes with rewards
 
 ### Many commands
 
-Atlanta has a lot of features, with **8 main categories** and **96 slash commands**:
+Atlanta has **8 main categories** and **74 slash commands**:
 
-*   👩‍💼 **Administration** (17): `welcome`, `goodbye`, `autorole`, `automod`, `backup`, `setlang`, `slowmode` and **10** more!
-*   🚓 **Moderation** (14): `ban`, `kick`, `mute`, `warn`, `clear`, `giveaway`, `sanctions` and **7** more!
+*   👩‍💼 **Administration** (14): `autorole`, `automod`, `backup`, `setlang`, `addcommand`, `ignore` and **8** more!
+*   🚓 **Moderation** (7): `mute`, `unmute`, `sanctions`, `announcement`, `giveaway`, `checkinvites`, `clear-sanctions`
 *   🎵 **Music** (13): `play`, `skip`, `queue`, `np`, `lyrics`, `filter`, `autoplay` and **6** more!
 *   💰 **Economy** (15): `profile`, `work`, `slots`, `rob`, `leaderboard`, `marry`, `achievements` and **8** more!
-*   👻 **Fun** (8): `8ball`, `ascii`, `flip`, `lovecalc`, `findwords`, `number` and **2** more!
-*   🖨️ **General** (20): `help`, `serverinfo`, `userinfo`, `translate`, `remindme`, `minecraft` and **14** more!
-*   🖼️ **Images** (6): `avatar`, `qrcode`, `love`, `facepalm`, `captcha`, `clyde`
+*   👻 **Fun** (3): `findwords`, `lmg`, `number`
+*   🖨️ **General** (16): `help`, `translate`, `minecraft`, `stats`, `suggest`, `report` and **10** more!
+*   🖼️ **Images** (3): `captcha`, `clyde`, `facepalm`
 *   👑 **Owner** (3): `eval`, `reload`, `servers-list`
+
+> **Running on GameVox?** GameVox answers a set of commands itself -- `/ban`,
+> `/kick`, `/clear`, `/slowmode`, `/8ball`, `/qrcode`, `/serverinfo` and others.
+> Atlanta's versions were removed rather than shipped alongside them, because
+> two commands with one name cannot be told apart in the GameVox picker.
+> Registering one of those names is refused by the GameVox API; see its
+> developer docs for the current list.
 
 ### A powerful Dashboard
 
